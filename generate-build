@@ -1,0 +1,126 @@
+#!/bin/sh -eu
+
+PKG_VERSION=$(cat meta/package.yaml  | grep version | sed "s/version: //g")
+PKG_PATH="/apps/lxd/$PKG_VERSION/"
+PKG_DATA_PATH="/var/lib/apps/lxd/$PKG_VERSION/"
+
+#CGMANAGER_TAG="v0.37"
+#LXCFS_TAG="lxcfs-0.9"
+#LXC_TAG="lxc-1.1.2"
+#LXD_TAG="lxd-0.11"
+CGMANAGER_TAG="master"
+LXCFS_TAG="master"
+LXC_TAG="master"
+LXD_TAG="master"
+
+TEMP=$(mktemp -d)
+rm -Rf cgmanager lxcfs lxc lxd deps
+mkdir cgmanager lxcfs lxc lxd deps
+
+
+mkdir ${TEMP}/pkg
+
+# Install dependencies
+apt-get install -y \
+    golang-go mercurial \
+    bridge-utils dnsmasq-base acl rsync \
+    git autoconf automake libtool libfuse-dev libapparmor-dev \
+    libseccomp-dev libcap-dev libgnutls-dev nih-dbus-tool libnih-dbus-dev
+
+# Bundle some binaries and libraries
+cp /sbin/brctl deps/
+cp /usr/lib/x86_64-linux-gnu/libnetfilter_conntrack.so.3 deps/
+cp /usr/lib/x86_64-linux-gnu/libnettle.so.6 deps/
+cp /usr/lib/x86_64-linux-gnu/libhogweed.so.4 deps/
+cp /lib/x86_64-linux-gnu/libmnl.so.0 deps/
+cp /usr/sbin/dnsmasq deps/
+cp /usr/bin/rsync deps/
+cp /usr/bin/setfacl deps/
+
+# CGManager
+(
+git clone git://github.com/lxc/cgmanager ${TEMP}/cgmanager
+cd ${TEMP}/cgmanager
+git checkout ${CGMANAGER_TAG} -b snappy
+./bootstrap.sh
+./configure --sbindir=${PKG_PATH}/cgmanager/
+make
+)
+
+cp ${TEMP}/cgmanager/cgmanager cgmanager/
+cp ${TEMP}/cgmanager/cgm-release-agent cgmanager/
+cp ${TEMP}/cgmanager/.libs/libcgm*so* cgmanager/
+
+# LXCFS
+(
+git clone git://github.com/lxc/lxcfs ${TEMP}/lxcfs
+cd ${TEMP}/lxcfs
+git checkout ${LXCFS_TAG} -b snappy
+./bootstrap.sh
+PKG_CONFIG_PATH=${TEMP}/cgmanager/ ./configure \
+    CFLAGS="-I${TEMP}" LDFLAGS="-L${TEMP}/cgmanager/.libs/" \
+    --datarootdir=${PKG_PATH} --localstatedir=${PKG_DATA_PATH}
+make
+sed -i "s#lib/lxcfs#lxcfs/mount#g" share/lxc.mount.hook
+)
+
+cp ${TEMP}/lxcfs/share/00-lxcfs.conf lxcfs/
+cp ${TEMP}/lxcfs/share/lxc.mount.hook lxcfs/
+cp ${TEMP}/lxcfs/.libs/lxcfs lxcfs/
+
+# LXC
+(
+git clone git://github.com/lxc/lxc ${TEMP}/lxc
+cd ${TEMP}/lxc
+git checkout ${LXC_TAG} -b snappy
+./autogen.sh
+PKG_CONFIG_PATH=${TEMP}/cgmanager/ \
+    ./configure \
+    CFLAGS="-I${TEMP}" LDFLAGS="-L${TEMP}/cgmanager/.libs/ -Wl,-rpath,${TEMP}/cgmanager/.libs/" \
+    --disable-selinux --disable-python --disable-lua --disable-tests \
+    --disable-examples --disable-doc --disable-api-docs --disable-bash \
+    --enable-cgmanager --enable-apparmor --enable-seccomp \
+    --enable-capabilities --localstatedir=${PKG_DATA_PATH} --datarootdir=${PKG_PATH} \
+    --libexecdir=${PKG_PATH} --with-rootfs-path=${PKG_DATA_PATH}
+make
+)
+
+cp ${TEMP}/lxc/src/lxc/liblxc.so lxc/
+ln -s liblxc.so lxc/liblxc.so.1
+ln -s liblxc.so lxc/liblxc.so.1.1.0
+cp ${TEMP}/lxc/src/lxc/lxc-monitord lxc/
+
+mkdir lxc/config lxc/config/common.conf.d
+cp ${TEMP}/lxc/config/templates/common.conf lxc/config/
+cp ${TEMP}/lxc/config/templates/common.seccomp lxc/config/
+cp ${TEMP}/lxc/config/templates/userns.conf lxc/config/
+cp ${TEMP}/lxc/config/templates/ubuntu.common.conf lxc/config/
+cp ${TEMP}/lxc/config/templates/ubuntu.userns.conf lxc/config/
+echo -e "\nlxc.aa_profile = unconfined" >> lxc/config/ubuntu.userns.conf
+
+mkdir lxc/hooks
+cp ${TEMP}/lxc/hooks/clonehostname lxc/hooks/
+
+# LXD
+(
+git clone git://github.com/lxc/lxd ${TEMP}/lxd
+cd ${TEMP}/lxd
+git checkout ${LXD_TAG} -b snappy
+mkdir -p build build/src/github.com/lxc/
+
+export GOPATH=${TEMP}/lxd/build
+export PKG_CONFIG_PATH=${TEMP}/lxc
+export CGO_CFLAGS="-I${TEMP}/lxc/src/"
+export CGO_LDFLAGS="-L${TEMP}/lxc/src/lxc/"
+
+ln -s ${TEMP}/lxd ${TEMP}/lxd/build/src/github.com/lxc/lxd
+go get -v -x ./... || true
+go get -v -x ./... || true
+go get -v -x ./... || true
+go install -v -x github.com/lxc/lxd/fuidshift
+go install -v -x github.com/lxc/lxd/lxc
+go install -v -x github.com/lxc/lxd/lxd
+)
+cp ${TEMP}/lxd/build/bin/* lxd/
+
+rm -Rf ${TEMP}

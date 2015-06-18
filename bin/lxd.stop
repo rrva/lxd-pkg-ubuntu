@@ -1,0 +1,46 @@
+#!/bin/sh
+export LD_LIBRARY_PATH=${SNAP_APP_PATH}/deps/:${SNAP_APP_PATH}/lxc/:${SNAP_APP_PATH}/cgmanager
+export PATH=${SNAP_APP_PATH}/deps/:$PATH
+export LXD_DIR=${SNAP_APP_DATA_PATH}/lxd
+
+# Stop lxd
+if [ -e ${SNAP_APP_DATA_PATH}/lxd.pid ]; then
+    PID=$(cat ${SNAP_APP_DATA_PATH}/lxd.pid)
+    /bin/kill -SIGPWR $PID
+    COUNT=0
+    while [ "$COUNT" != "30" ]; do
+        sleep 1
+        COUNT=$((${COUNT}+1))
+        ps $PID >/dev/null 2>&1 || break
+    done
+    ps $PID >/dev/null 2>&1 && /bin/kill -9 $PID
+fi
+
+# Stop lxcfs
+if [ -e ${SNAP_APP_DATA_PATH}/lxcfs.pid ]; then
+    PID=$(cat ${SNAP_APP_DATA_PATH}/lxcfs.pid)
+    /bin/kill $PID
+    COUNT=0
+    while [ "$COUNT" != "30" ]; do
+        sleep 1
+        COUNT=$((${COUNT}+1))
+        ps $PID >/dev/null 2>&1 || break
+    done
+    ps $PID >/dev/null 2>&1 && /bin/kill -9 $PID
+fi
+
+# Stop cgmanager
+if [ -e ${SNAP_APP_DATA_PATH}/cgmanager.pid ]; then
+    PID=$(cat ${SNAP_APP_DATA_PATH}/cgmanager.pid)
+    /bin/kill $PID
+    COUNT=0
+    while [ "$COUNT" != "30" ]; do
+        sleep 1
+        COUNT=$((${COUNT}+1))
+        ps $PID >/dev/null 2>&1 || break
+    done
+    ps $PID >/dev/null 2>&1 && /bin/kill -9 $PID
+fi
+
+# Stop networking
+${SNAP_APP_PATH}/bin/lxc-net stop

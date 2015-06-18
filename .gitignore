@@ -1,0 +1,6 @@
+cgmanager/
+deps/
+lxc/
+lxcfs/
+lxd/
+*.snap
