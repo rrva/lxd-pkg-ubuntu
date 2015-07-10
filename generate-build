@@ -26,7 +26,8 @@ apt-get install -y \
     golang-go mercurial \
     bridge-utils dnsmasq-base acl rsync \
     git autoconf automake libtool libfuse-dev libapparmor-dev \
-    libseccomp-dev libcap-dev libgnutls-dev nih-dbus-tool libnih-dbus-dev
+    libseccomp-dev libcap-dev libgnutls-dev nih-dbus-tool libnih-dbus-dev \
+    libpam0g-dev
 
 # Bundle some binaries and libraries
 cp /sbin/brctl deps/
