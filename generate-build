@@ -13,6 +13,7 @@ LXCFS_TAG="master"
 LXC_TAG="master"
 LXD_TAG="master"
 
+ARCH=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
 TEMP=$(mktemp -d)
 rm -Rf cgmanager lxcfs lxc lxd deps
 mkdir cgmanager lxcfs lxc lxd deps
@@ -29,10 +30,10 @@ apt-get install -y \
 
 # Bundle some binaries and libraries
 cp /sbin/brctl deps/
-cp /usr/lib/x86_64-linux-gnu/libnetfilter_conntrack.so.3 deps/
-cp /usr/lib/x86_64-linux-gnu/libnettle.so.6 deps/
-cp /usr/lib/x86_64-linux-gnu/libhogweed.so.4 deps/
-cp /lib/x86_64-linux-gnu/libmnl.so.0 deps/
+cp /usr/lib/$ARCH/libnetfilter_conntrack.so.3 deps/
+cp /usr/lib/$ARCH/libnettle.so.6 deps/
+cp /usr/lib/$ARCH/libhogweed.so.4 deps/
+cp /lib/$ARCH/libmnl.so.0 deps/
 cp /usr/sbin/dnsmasq deps/
 cp /usr/bin/rsync deps/
 cp /usr/bin/setfacl deps/
