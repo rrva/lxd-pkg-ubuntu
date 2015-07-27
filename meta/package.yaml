@@ -1,5 +1,5 @@
 name: lxd
-version: 0.13-git0
+version: 0.14-git0
 vendor: "Stéphane Graber <stgraber@ubuntu.com>"
 icon: meta/lxd.png
 type: framework
